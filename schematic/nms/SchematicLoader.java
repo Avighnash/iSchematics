@@ -2,14 +2,20 @@ package us.universalpvp.schematic.nms;
 
 import com.flowpowered.nbt.*;
 import com.flowpowered.nbt.stream.NBTInputStream;
+import net.minecraft.server.v1_10_R1.BlockPosition;
+import net.minecraft.server.v1_10_R1.Chunk;
+import net.minecraft.server.v1_10_R1.IBlockData;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.craftbukkit.v1_10_R1.CraftWorld;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Created by avigh on 8/20/2016.
@@ -24,12 +30,16 @@ public class SchematicLoader {
                 width = schematic.getWidth(),
                 height = schematic.getHeight();
 
+        Queue<Block> queue = new ConcurrentLinkedQueue<>();
+
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
                 for (int z = 0; z < length; z++) {
                     Block block = new Location(w, x, y, z).getBlock();
 
-                    block.setTypeIdAndData(blocks[1], blocks[2], true);
+                    queue.add(block);
+
+                    setBlockFast(w, x, y, z, block.getTypeId(), block.getData());
                 }
             }
         }
@@ -87,4 +97,16 @@ public class SchematicLoader {
 
         return expected.cast(tag);
     }
+
+    public void setBlockFast(World world, int x, int y, int z, int blockId, byte data) {
+        net.minecraft.server.v1_10_R1.World w = ((CraftWorld) world).getHandle();
+        Chunk chunk = w.getChunkAt(x >> 4, z >> 4);
+        a(chunk, new BlockPosition(x, y, z), net.minecraft.server.v1_10_R1.Block.getById(blockId).fromLegacyData(data));
+
+    }
+
+    private IBlockData a(Chunk that, BlockPosition blockposition, IBlockData iblockdata) {
+        return that.a(blockposition, iblockdata);
+    }
 }
+
