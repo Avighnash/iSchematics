@@ -5,22 +5,32 @@ import com.flowpowered.nbt.stream.NBTInputStream;
 import net.minecraft.server.v1_10_R1.BlockPosition;
 import net.minecraft.server.v1_10_R1.Chunk;
 import net.minecraft.server.v1_10_R1.IBlockData;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.craftbukkit.v1_10_R1.CraftWorld;
+import us.universalpvp.schematic.ISchematicsMain;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
  * Created by avigh on 8/20/2016.
  */
 public class SchematicLoader {
+
+    private static ISchematicsMain main;
+    private Map<World, BlockQueue> queueMap = new HashMap<>();
+
+    public SchematicLoader(ISchematicsMain main) {
+        this.main = main;
+    }
 
     public void pasteSchematic(Location loc, World w, Schematic schematic) {
         byte[] blocks = schematic.getBlocks(),
@@ -30,14 +40,10 @@ public class SchematicLoader {
                 width = schematic.getWidth(),
                 height = schematic.getHeight();
 
-        Queue<Block> queue = new ConcurrentLinkedQueue<>();
-
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
                 for (int z = 0; z < length; z++) {
                     Block block = new Location(w, x, y, z).getBlock();
-
-                    queue.add(block);
 
                     setBlockFast(w, x, y, z, block.getTypeId(), block.getData());
                 }
@@ -45,7 +51,7 @@ public class SchematicLoader {
         }
     }
 
-    public void createSchematic(String name, World w, CuboidSelection selection) throws IOException {
+    public void createSchematic(String name, World w, Clipboard clipboard) throws IOException {
         File file = new File(name + ".schematic");
     }
 
@@ -94,7 +100,6 @@ public class SchematicLoader {
             throw new IllegalArgumentException(key + " tag is not of tag type " + expected.getName());
         }
 
-
         return expected.cast(tag);
     }
 
@@ -107,6 +112,30 @@ public class SchematicLoader {
 
     private IBlockData a(Chunk that, BlockPosition blockposition, IBlockData iblockdata) {
         return that.a(blockposition, iblockdata);
+    }
+
+    public class BlockQueue {
+
+        private Deque<Block> queue = new ConcurrentLinkedDeque<>();
+
+        public void add(Block block) {
+            queue.add(block);
+        }
+
+        public BlockQueue(final World world) {
+            Bukkit.getScheduler().scheduleSyncRepeatingTask(main, () -> {
+                Block block = null;
+                boolean hasTime = true;
+                long start = System.currentTimeMillis();
+
+                while ((block = queue.poll()) != null && hasTime) {
+
+                    hasTime = System.currentTimeMillis() - start < 10;
+                    world.getBlockAt(block.getX(), block.getY(), block.getZ()).setTypeIdAndData(block.getTypeId(), block.getData(), true);
+                }
+            }, 1, 1);
+        }
+
     }
 }
 
